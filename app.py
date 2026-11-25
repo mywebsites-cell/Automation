@@ -773,6 +773,24 @@ def render_app() -> None:
                     with del_col:
                         if st.button("Remove", key=f"del_{acc.name}"):
                             st.session_state["delete_account_name"] = acc.name
+
+                    prompt_key = f"story_prompt_{acc.name}"
+                    current_prompt = str(getattr(acc, "story_prompt", ""))
+                    updated_prompt = st.text_area(
+                        f"Generation prompt — {acc.name}",
+                        value=current_prompt,
+                        key=prompt_key,
+                        height=220,
+                        help="Used as the story topic/prompt for every new story routed to this account.",
+                    )
+                    if st.button("Save prompt", key=f"save_prompt_{acc.name}"):
+                        account_dir = account_manager.accounts_dir / account_manager._slug(acc.name)
+                        metadata_path = account_dir / "account.json"
+                        metadata = load_json(metadata_path) if metadata_path.exists() else {}
+                        metadata["story_prompt"] = updated_prompt.strip()
+                        write_json(metadata_path, metadata)
+                        st.success(f"Saved story prompt for {acc.name}.")
+                        st.rerun()
             else:
                 st.caption("No accounts connected yet.")
 
@@ -785,6 +803,12 @@ def render_app() -> None:
                     value="",
                     placeholder="e.g. horror, scary, ghost",
                     help="Stories whose title/topic contain any of these words are routed to this account. Leave blank to make it the default (catch-all) account.",
+                )
+                new_account_story_prompt = st.text_area(
+                    "Story generation prompt",
+                    value="",
+                    placeholder="Describe the exact story type this account should always generate.",
+                    help="The scheduler passes this prompt to the story generator for every story routed to this account.",
                 )
                 youtube_connect_btn = st.button("Connect this account")
 
@@ -880,7 +904,7 @@ def render_app() -> None:
             with st.spinner("Opening your browser to authorize this account\u2026"):
                 try:
                     keywords = [k.strip() for k in new_account_keywords.split(",") if k.strip()]
-                    acc = account_manager.connect_account(new_account_name, keywords)
+                    acc = account_manager.connect_account(new_account_name, keywords, new_account_story_prompt)
                     st.success(f"Connected {acc.name} ({acc.channel_title or 'unknown channel'}).")
                     st.rerun()
                 except Exception as exc:

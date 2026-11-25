@@ -165,6 +165,9 @@ def _cycle_accounts(engine: AutopilotEngine) -> list[YouTubeAccount]:
 
 def _topic_for_account(engine: AutopilotEngine, account: YouTubeAccount, ap: dict, used: list[str]) -> str:
     """Pick/generate a topic that belongs to this account's niche."""
+    if getattr(account, "story_prompt", "").strip():
+        return account.story_prompt.strip()
+
     static = list(ap.get("topics", []))
 
     if account.keywords:

@@ -24,6 +24,7 @@ class YouTubeAccount:
     keywords: list[str]
     channel_title: str
     token_path: Path
+    story_prompt: str = ""
 
     @property
     def connected(self) -> bool:
@@ -76,6 +77,7 @@ class YouTubeAccountManager:
                     keywords=[k.strip() for k in meta.get("keywords", []) if k.strip()],
                     channel_title=str(meta.get("channel_title", "")),
                     token_path=d / "token.json",
+                    story_prompt=str(meta.get("story_prompt", "")),
                 )
             )
         return accounts
@@ -108,7 +110,7 @@ class YouTubeAccountManager:
     def get_uploader(self, account: YouTubeAccount) -> YouTubeUploader:
         return YouTubeUploader(self.client_secrets_path, account.token_path)
 
-    def connect_account(self, name: str, keywords: list[str]) -> YouTubeAccount:
+    def connect_account(self, name: str, keywords: list[str], story_prompt: str = "") -> YouTubeAccount:
         """Run the OAuth flow for a new account and store its token + metadata."""
         if not self.has_client_secret():
             raise RuntimeError("Upload your client_secret.json first.")
@@ -135,6 +137,7 @@ class YouTubeAccountManager:
                 "name": label,
                 "keywords": cleaned_keywords,
                 "channel_title": channel_title,
+                "story_prompt": story_prompt.strip(),
             },
         )
         return YouTubeAccount(
@@ -142,6 +145,7 @@ class YouTubeAccountManager:
             keywords=cleaned_keywords,
             channel_title=channel_title,
             token_path=token_path,
+            story_prompt=story_prompt.strip(),
         )
 
     def delete_account(self, name: str) -> None:
