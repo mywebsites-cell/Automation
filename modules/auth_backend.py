@@ -102,7 +102,7 @@ class AuthBackend:
             )
             return False
 
-    def create_reset_token(self, identity: str) -> str | None:
+    def create_reset_token(self, identity: str) -> tuple[str, str] | None:
         identity = identity.lower()
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -123,7 +123,7 @@ class AuthBackend:
                 "INSERT INTO reset_tokens(token_hash, user_id, expires_at) VALUES (?, ?, ?)",
                 (token_hash, row["id"], time.time() + 900),
             )
-            return token
+            return token, str(row["email"])
 
     def reset_password(self, token: str, new_password: str) -> bool:
         token_hash = hashlib.sha256(token.encode()).hexdigest()

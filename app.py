@@ -387,10 +387,11 @@ def render_app() -> None:
         with tab_reset:
             reset_identity = st.text_input("Username or email", key="reset_identity")
             if st.button("Send reset link", use_container_width=True):
-                token = auth.create_reset_token(reset_identity)
-                if token:
+                reset_request = auth.create_reset_token(reset_identity)
+                if reset_request:
+                    token, account_email = reset_request
                     reset_url = os.getenv("APP_PUBLIC_URL", "http://79.72.89.208:8501")
-                    sent = auth.send_reset_email(reset_identity.lower(), token, reset_url)
+                    sent = auth.send_reset_email(account_email, token, reset_url)
                     if sent:
                         st.success("If SMTP is configured, a reset link was sent to the account email.")
                     else:
