@@ -59,12 +59,7 @@ class AuthBackend:
                 """
                 INSERT INTO users (username, email, password_hash, updated_at)
                 VALUES (?, ?, ?, ?)
-                ON CONFLICT(username) DO UPDATE SET
-                    email=excluded.email,
-                    password_hash=excluded.password_hash,
-                    failed_attempts=0,
-                    locked_until=0,
-                    updated_at=excluded.updated_at
+                ON CONFLICT(username) DO NOTHING
                 """,
                 (username.lower(), email.lower(), password_hash, now),
             )
