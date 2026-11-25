@@ -49,6 +49,26 @@ SETTINGS_PATH = PATHS.config_dir / "settings.json"
 SECRETS_PATH = PATHS.config_dir / "secrets.json"
 
 
+def _load_dotenv() -> None:
+    """Load a local .env file (if present) into the environment.
+
+    Only sets variables that are not already defined, so a real environment
+    (e.g. systemd EnvironmentFile on the server) takes precedence.
+    """
+    env_path = BASE_DIR / ".env"
+    if not env_path.exists():
+        return
+    for raw in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip())
+
+
+_load_dotenv()
+
+
 def _load_settings() -> dict[str, Any]:
     if not SETTINGS_PATH.exists():
         raise RuntimeError(f"Missing settings file: {SETTINGS_PATH}")
@@ -930,6 +950,8 @@ def render_app() -> None:
                 badge = "⬆️ Uploading…"
             elif ups["state"] == "error":
                 badge = "❌ Upload error"
+            elif s["state"] == "in_progress":
+                badge = "🛠 Incomplete — needs resume"
             elif uploadable:
                 n_parts = len(pending_parts)
                 badge = f"📦 {n_parts} part(s) ready to upload" + (" + full" if pending_full else "")
@@ -950,6 +972,14 @@ def render_app() -> None:
                     st.button("🔒 Locked", key=f"up_{sid}", disabled=True)
                 elif ups["running"]:
                     st.button("⬆️ Uploading…", key=f"up_{sid}", disabled=True)
+                elif s["state"] == "in_progress":
+                    if st.button("🛠 Resume", key=f"resume_{sid}", type="primary"):
+                        pid = autopilot_controller.start(PATHS.cache_dir, BASE_DIR)
+                        if pid:
+                            st.success("Resume task started. It will render missing videos and retry YouTube uploads.")
+                        else:
+                            st.error("Could not start the resume task. Check the server log.")
+                        st.rerun()
                 elif uploadable:
                     if st.button("⬆️ Upload", key=f"up_{sid}", type="primary"):
                         try:
@@ -963,6 +993,36 @@ def render_app() -> None:
                         st.rerun()
                 elif ups["state"] == "done":
                     st.button("✅ Done", key=f"up_{sid}", disabled=True)
+
+            story_output = ensure_story_output_structure(PATHS, sid)
+            watch_full = story_output.final / "full.mp4"
+            watch_part = story_output.final / f"part1.mp4"
+            watch_path = watch_full if watch_full.exists() else watch_part
+
+            watch_col, delete_col = st.columns([4, 1])
+            with watch_col:
+                if watch_path.exists():
+                    with st.popover("▶ Watch"):
+                        st.video(str(watch_path))
+                else:
+                    st.button("▶ Watch", key=f"watch_{sid}", disabled=True)
+            with delete_col:
+                confirm_key = f"confirm_delete_{sid}"
+                if st.session_state.get(confirm_key):
+                    if st.button("Confirm delete", key=f"confirm_delete_btn_{sid}", type="primary"):
+                        try:
+                            story_uploader.delete_story(PATHS, sid)
+                            st.session_state.pop(confirm_key, None)
+                            st.success(f"Deleted {sid} and its related files.")
+                            st.rerun()
+                        except Exception as exc:
+                            st.error(f"Could not delete {sid}: {exc}")
+                    if st.button("Cancel", key=f"cancel_delete_{sid}"):
+                        st.session_state.pop(confirm_key, None)
+                        st.rerun()
+                elif st.button("🗑 Delete", key=f"delete_{sid}"):
+                    st.session_state[confirm_key] = True
+                    st.rerun()
 
             with st.expander(f"Details — {sid}", expanded=False):
                 if s["parts"]:

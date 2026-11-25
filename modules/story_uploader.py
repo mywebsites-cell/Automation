@@ -284,6 +284,27 @@ def list_stories(paths: ProjectPaths) -> list[dict[str, Any]]:
     return [story_summary(paths, d.name) for d in dirs]
 
 
+def delete_story(paths: ProjectPaths, story_id: str) -> None:
+    """Delete a story and all related output and transient state."""
+    if not story_id or not story_id.replace("_", "").isalnum():
+        raise ValueError("Invalid story ID")
+
+    story_dir = paths.output_dir / story_id
+    if story_dir.parent.resolve() != paths.output_dir.resolve():
+        raise ValueError("Invalid story directory")
+
+    import shutil
+    if story_dir.exists():
+        shutil.rmtree(story_dir)
+
+    narrative = paths.stories_dir / f"{story_id}.txt"
+    narrative.unlink(missing_ok=True)
+
+    upload_status_dir = paths.cache_dir / "autopilot" / "uploads"
+    (upload_status_dir / f"{story_id}.json").unlink(missing_ok=True)
+    (upload_status_dir / f"{story_id}.pid").unlink(missing_ok=True)
+
+
 # ── the upload-only job ─────────────────────────────────────────────────────
 def upload_story(
     paths: ProjectPaths,
