@@ -1,0 +1,57 @@
+{
+  "gemini": {
+    "model_candidates": ["gemini-pro", "gemini-1.5-flash", "gemini-1.5-pro"],
+    "temperature": 0.9,
+    "max_output_tokens": 2200
+  },
+  "llm": {
+    "provider": "gemini",
+    "model": "gemini-1.5-flash",
+    "base_url": ""
+  },
+  "image": {
+    "provider": "openai",
+    "model": "gpt-image-1",
+    "base_url": "",
+    "size": "1024x1792"
+  },
+  "story": {
+    "target_words_per_part_min": 130,
+    "target_words_per_part_max": 160,
+    "max_parts": 10
+  },
+  "tts": {
+    "model_path": "cache/kokoro-v1.0.onnx",
+    "voices_path": "cache/voices-v1.0.bin",
+    "model_url": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx",
+    "voices_url": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin",
+    "default_voice": "af_heart",
+    "language": "en-us",
+    "speed": 1.0
+  },
+  "subtitle": {
+    "model_size": "tiny",
+    "beam_size": 5,
+    "word_timestamps": true
+  },
+  "render": {
+    "fps": 30,
+    "width": 1080,
+    "height": 1920,
+    "video_codec": "libx264",
+    "audio_codec": "aac",
+    "video_bitrate": "40M",
+    "audio_bitrate": "256k",
+    "threads": 2,
+    "subtitle_font_size": 16,
+    "subtitle_alignment": 2,
+    "subtitle_margin_v": 40,
+    "subtitle_primary_color": "&H00FFFF&",
+    "subtitle_outline_color": "&H000000&"
+  },
+  "performance": {
+    "max_workers": 1,
+    "cuda_compute_type": "float16",
+    "cpu_compute_type": "int8"
+  }
+}

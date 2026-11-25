@@ -1,0 +1,40 @@
+# Secrets / credentials — never commit these
+config/secrets.json
+config/*secret*
+!config/secrets.example.json
+.secrets/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+cache/youtube/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# VS Code / Streamlit local state
+.vscode/
+.streamlit/secrets.toml
+
+# Outputs / cache
+output/
+cache/
+temp/
+*.log
+*.bak
+
+# Large runtime assets and generated media
+assets/backgrounds/**/*.mp4
+assets/backgrounds/**/*.mov
+assets/backgrounds/**/*.mkv
+backgrounds/**/*.mp4
+backgrounds/**/*.mov
+backgrounds/**/*.mkv
+*.onnx
+*.bin

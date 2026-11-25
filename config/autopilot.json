@@ -1,0 +1,36 @@
+{
+  "topics": [
+    "Scary historical shipwrecks",
+    "True crime cold cases",
+    "Creepy abandoned places",
+    "Unexplained disappearances",
+    "Dark folklore legends"
+  ],
+  "seed_topics": [
+    "Scary historical shipwrecks",
+    "True crime cold cases",
+    "Creepy abandoned places"
+  ],
+  "auto_generate_topics": true,
+  "interval_minutes": 60,
+  "jitter_minutes": 15,
+  "max_per_day": 4,
+  "quiet_hours_start": 1,
+  "quiet_hours_end": 5,
+  "shorts_per_story": 5,
+  "total_story_minutes": 10,
+  "voice": "af_heart",
+  "auto_voice": true,
+  "quality": "Balanced",
+  "enable_subtitles": true,
+  "subtitle_position": "Bottom",
+  "subtitle_font_size": 16,
+  "background_category": "minecraft",
+  "background_video": "",
+  "long_video_enabled": true,
+  "enable_thumbnail": false,
+  "enable_youtube": true,
+  "youtube_category": "Entertainment",
+  "youtube_privacy": "private",
+  "youtube_tags": "shorts, storytime, viral, fyp"
+}
