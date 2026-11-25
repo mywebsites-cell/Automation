@@ -39,6 +39,7 @@ from modules.utils import (
 from modules.video_engine import VideoPipelineEngine
 from modules.youtube_accounts import YouTubeAccount, YouTubeAccountManager
 from modules.youtube_uploader import YouTubeUploadResult, YouTubeUploader
+from modules.auth_backend import AuthBackend
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -357,8 +358,68 @@ def _enrich_parts_with_ai_youtube_metadata(
 
 def render_app() -> None:
     st.set_page_config(page_title="Local AI Shorts Factory", layout="wide")
+
+    auth = AuthBackend(PATHS.cache_dir / "auth.db")
+    bootstrap_username = os.getenv("APP_USERNAME", "")
+    bootstrap_email = os.getenv("APP_EMAIL", "")
+    bootstrap_password = os.getenv("APP_PASSWORD", "")
+    if bootstrap_username and bootstrap_email and bootstrap_password:
+        auth.ensure_user(bootstrap_username, bootstrap_email, bootstrap_password)
+
+    if "authenticated" not in st.session_state:
+        st.session_state["authenticated"] = False
+
+    if not st.session_state["authenticated"]:
+        st.title("Local AI Shorts Factory")
+        tab_login, tab_reset = st.tabs(["Sign in", "Forgot password"])
+
+        with tab_login:
+            username = st.text_input("Username or email", key="auth_identity")
+            password = st.text_input("Password", type="password", key="auth_password")
+            if st.button("Sign in", type="primary", use_container_width=True):
+                if auth.authenticate(username, password):
+                    st.session_state["authenticated"] = True
+                    st.session_state["auth_identity"] = username.lower()
+                    st.rerun()
+                else:
+                    st.error("Invalid credentials or account temporarily locked.")
+
+        with tab_reset:
+            reset_identity = st.text_input("Username or email", key="reset_identity")
+            if st.button("Send reset link", use_container_width=True):
+                token = auth.create_reset_token(reset_identity)
+                if token:
+                    reset_url = os.getenv("APP_PUBLIC_URL", "http://79.72.89.208:8501")
+                    sent = auth.send_reset_email(reset_identity.lower(), token, reset_url)
+                    if sent:
+                        st.success("If SMTP is configured, a reset link was sent to the account email.")
+                    else:
+                        st.warning("SMTP is not configured. Use server administration to issue a reset.")
+                else:
+                    st.success("If that account exists, a reset link will be sent.")
+
+        token = st.query_params.get("token")
+        if token:
+            with st.expander("Create a new password", expanded=True):
+                new_password = st.text_input("New password", type="password", key="new_password")
+                confirm_password = st.text_input("Confirm password", type="password", key="confirm_password")
+                if st.button("Reset password"):
+                    if len(new_password) < 12:
+                        st.error("Password must be at least 12 characters.")
+                    elif new_password != confirm_password:
+                        st.error("Passwords do not match.")
+                    elif auth.reset_password(str(token), new_password):
+                        st.query_params.clear()
+                        st.success("Password reset. Sign in with the new password.")
+                    else:
+                        st.error("Reset link is invalid or expired.")
+        st.stop()
+
     st.title("Local AI Shorts Automation Engine")
     st.caption("Connected story generation, local narration, subtitles, and vertical short export")
+    if st.sidebar.button("Sign out"):
+        st.session_state["authenticated"] = False
+        st.rerun()
 
     settings = _load_settings()
 
