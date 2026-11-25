@@ -2,6 +2,9 @@ streamlit>=1.37.0
 google-generativeai>=0.8.6
 requests>=2.32.3
 faster-whisper>=1.1.1
+# Pin av below 19: faster-whisper 1.2.1 passes metadata_errors="ignore" to av.open(),
+# which PyAV removed in v19. Downgrade keeps transcription working.
+av>=11,<19
 kokoro-onnx>=0.5.0
 soundfile>=0.12.1
 numpy>=1.26.4
