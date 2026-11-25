@@ -379,7 +379,7 @@ def render_app() -> None:
             if st.button("Sign in", type="primary", use_container_width=True):
                 if auth.authenticate(username, password):
                     st.session_state["authenticated"] = True
-                    st.session_state["auth_identity"] = username.lower()
+                    st.session_state["authenticated_user"] = username.lower()
                     st.rerun()
                 else:
                     st.error("Invalid credentials or account temporarily locked.")
