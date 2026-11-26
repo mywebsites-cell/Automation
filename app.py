@@ -870,6 +870,44 @@ def render_app() -> None:
         # Auto voice: pick a narrator (male/female, deep/warm/…) per story.
         autopilot_config_path = PATHS.config_dir / "autopilot.json"
         _ap_cfg = _load_optional_json(autopilot_config_path)
+        background_files = [
+            path
+            for category in bg_manager.categories()
+            for path in bg_manager.list_category_files(category)
+        ]
+        background_options = [""] + [str(path) for path in background_files]
+        saved_background = str(_ap_cfg.get("background_video") or "")
+        if saved_background and saved_background not in background_options:
+            background_options.append(saved_background)
+        selected_background = st.selectbox(
+            "Autopilot background video",
+            options=background_options,
+            index=background_options.index(saved_background),
+            format_func=lambda value: "Use category clips" if not value else Path(value).name,
+            help="This file must be stored on the machine running the app. It is saved for future Autopilot stories.",
+        )
+        if selected_background != saved_background:
+            _ap_cfg["background_video"] = selected_background
+            write_json(autopilot_config_path, _ap_cfg)
+
+        ap_categories = [
+            category for category in bg_manager.categories()
+            if bg_manager.list_category_files(category)
+        ]
+        if ap_categories:
+            saved_category = _ap_cfg.get("background_category", "minecraft")
+            if saved_category not in ap_categories:
+                saved_category = ap_categories[0]
+            selected_category = st.selectbox(
+                "Autopilot background category",
+                options=ap_categories,
+                index=ap_categories.index(saved_category),
+                help="Used when 'Use category clips' is selected above.",
+            )
+            if selected_category != _ap_cfg.get("background_category"):
+                _ap_cfg["background_category"] = selected_category
+                write_json(autopilot_config_path, _ap_cfg)
+
         auto_voice_current = bool(_ap_cfg.get("auto_voice", True))
         auto_voice_toggle = st.toggle(
             "Auto voice (pick per story)",

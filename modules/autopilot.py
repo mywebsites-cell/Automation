@@ -347,6 +347,8 @@ class AutopilotEngine:
         progress = self._init_progress(
             story_output, story_id, story_title, topic,
             youtube_account, voice, parts,
+            str(source_bg_video) if source_bg_video else None,
+            cfg.background_category,
         )
         self._save_progress(story_output, progress)
 
@@ -440,6 +442,8 @@ class AutopilotEngine:
         account: YouTubeAccount | None,
         voice: str,
         parts: list[StoryPart],
+        background_video: str | None,
+        background_category: str,
     ) -> dict[str, Any]:
         now = datetime.now().isoformat(timespec="seconds")
         return {
@@ -450,6 +454,8 @@ class AutopilotEngine:
             "account": account.name if account else None,
             "channel": account.channel_title if account else None,
             "voice": voice,
+            "background_video": background_video,
+            "background_category": background_category,
             "created_iso": now,
             "updated_iso": now,
             "parts": {str(p.index): {"uploaded": False, "url": None, "failed": False} for p in parts},
@@ -572,10 +578,12 @@ class AutopilotEngine:
             thumbnail_path = None
 
         source_bg_video: Path | None = None
-        if cfg.background_video:
-            p = Path(cfg.background_video)
+        saved_background_video = progress.get("background_video") or cfg.background_video
+        if saved_background_video:
+            p = Path(saved_background_video)
             if p.exists():
                 source_bg_video = p
+        background_category = progress.get("background_category") or cfg.background_category
 
         uploaded_videos: list[str] = []
 
@@ -598,7 +606,7 @@ class AutopilotEngine:
                     part_text=part.text,
                     voice=voice,
                     background_video=source_bg_video,
-                    category=cfg.background_category if not source_bg_video else None,
+                    category=background_category if not source_bg_video else None,
                     enable_subtitles=cfg.enable_subtitles,
                     quality=cfg.quality,
                     background_position=0.0,
@@ -631,7 +639,7 @@ class AutopilotEngine:
                     narrative=narrative,
                     voice=voice,
                     background_video=source_bg_video,
-                    category=cfg.background_category if not source_bg_video else None,
+                    category=background_category if not source_bg_video else None,
                     enable_subtitles=cfg.enable_subtitles,
                     quality=cfg.quality,
                 )
