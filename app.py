@@ -323,10 +323,12 @@ def _publish_part_to_youtube(
     youtube_category: str,
     youtube_privacy: str,
 ) -> YouTubeUploadResult:
-    if meta and meta.get("youtube_title"):
+    if youtube_title.strip():
+        title = youtube_title.strip()
+    elif meta and meta.get("youtube_title"):
         title = meta["youtube_title"]
     else:
-        title = youtube_title.strip() or f"{story_title} - Part {part.index}"
+        title = f"{story_title} - Part {part.index}"
 
     if meta and meta.get("youtube_description"):
         description = meta["youtube_description"]
@@ -736,8 +738,13 @@ def render_app() -> None:
         youtube_privacy = "private"
         youtube_connect_btn = False
         if enable_youtube:
+            youtube_title = st.text_input(
+                "Video Title Override",
+                value="",
+                placeholder="Leave blank to use the generated title",
+                help="When provided, this exact title is used for uploaded shorts and the full story.",
+            )
             if script_mode == "Manual Script":
-                youtube_title = st.text_input("Video Title", value="", placeholder="Defaults to <Story Title> - Part N")
                 youtube_description = st.text_area(
                     "Video Description",
                     value="",
@@ -746,7 +753,7 @@ def render_app() -> None:
                 )
                 youtube_tags = st.text_input("Tags (comma separated)", value="shorts, storytime, viral, fyp")
             else:
-                st.caption("Title, description and hashtags will be auto-generated for each part.")
+                st.caption("Descriptions and hashtags are generated automatically; your title override takes precedence.")
             col_cat, col_priv = st.columns(2)
             with col_cat:
                 youtube_category = st.selectbox(
@@ -1265,15 +1272,26 @@ def render_app() -> None:
             # ── Resolve narrative + title ─────────────────────────────────────
             if script_mode == "AI Generate":
                 assert story_generator is not None
+                generation_account = (
+                    account_manager.resolve_account(topic.strip(), accounts)
+                    if enable_youtube
+                    else None
+                )
+                generation_prompt = (
+                    generation_account.story_prompt.strip()
+                    if generation_account and generation_account.story_prompt.strip()
+                    else topic.strip()
+                )
                 generated = story_generator.generate_story(
-                    topic.strip(),
+                    generation_prompt,
                     requested_parts=shorts_per_story,
                     target_total_words=total_target_words,
                 )
                 narrative = generated.narrative
                 story_title = generated.title
-                display_topic = topic.strip()
+                display_topic = generation_prompt
             else:
+                generation_account = None
                 narrative = manual_script.strip()
                 story_title = manual_title.strip() or "Manual Story"
                 display_topic = story_title
@@ -1347,7 +1365,7 @@ def render_app() -> None:
             youtube_uploader = None
             meta_by_index = {p["part_index"]: p for p in metadata_payload["parts"]}
             if enable_youtube:
-                youtube_account = account_manager.resolve_account(
+                youtube_account = generation_account or account_manager.resolve_account(
                     f"{story_title} {display_topic}", accounts
                 )
                 if youtube_account is None:
@@ -1412,14 +1430,15 @@ def render_app() -> None:
                     )
                     if youtube_uploader is not None:
                         try:
-                            long_title = story_title
+                            long_title = youtube_title.strip() or story_title
                             long_description = ""
                             long_tags = [t.strip() for t in youtube_tags.split(",") if t.strip()]
                             if story_generator is not None:
                                 md = story_generator.generate_youtube_metadata(
                                     story_title, display_topic, 0, "Full Story", narrative
                                 )
-                                long_title = md.title
+                                if not youtube_title.strip():
+                                    long_title = md.title
                                 long_description = md.description
                                 long_tags = md.tags
                             long_result = youtube_uploader.upload_video(
