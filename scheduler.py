@@ -283,6 +283,19 @@ def main() -> None:
             time.sleep(7200)
             continue
 
+        # Pick up sidebar changes only between stories. An unfinished story keeps
+        # the engine/config it started with and is resumed before new work begins.
+        if not engine.has_pending_story():
+            latest_ap = load_autopilot_config()
+            latest_secrets = load_secrets(PATHS)
+            if latest_ap != ap or latest_secrets != secrets:
+                logger.info("Settings changed; applying them to the next story.")
+                ap = latest_ap
+                secrets = latest_secrets
+                engine = build_engine(ap, settings, secrets)
+                topics_pool = list(ap.get("topics", []))
+                target_accounts = _cycle_accounts(engine)
+
         # ── First: resume any interrupted story from a previous run ─────────
         try:
             resumed = engine.resume_pending_story()

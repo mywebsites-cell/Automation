@@ -1056,6 +1056,33 @@ def render_app() -> None:
                 elif ups["state"] == "done":
                     st.button("✅ Done", key=f"up_{sid}", disabled=True)
 
+            with st.expander(f"Script and upload record — {sid}", expanded=False):
+                narrative_path = PATHS.stories_dir / f"{sid}.txt"
+                if narrative_path.exists():
+                    st.text_area(
+                        "Generated story script",
+                        value=narrative_path.read_text(encoding="utf-8", errors="replace"),
+                        height=260,
+                        key=f"story_script_{sid}",
+                        disabled=True,
+                    )
+                else:
+                    st.caption("The story script file is not available.")
+                if s["parts"]:
+                    for part_status in s["parts"]:
+                        upload_state = "Uploaded" if part_status["uploaded"] else (
+                            "Upload failed" if part_status["failed"] else "Not uploaded"
+                        )
+                        st.write(
+                            f"Part {part_status['index']}: {upload_state}"
+                            + (f" — {part_status['url']}" if part_status["url"] else "")
+                        )
+                if s["full_rendered"]:
+                    st.write(
+                        "Full story: "
+                        + (f"Uploaded — {s['long_url']}" if s["long_uploaded"] else "Not uploaded")
+                    )
+
             story_output = ensure_story_output_structure(PATHS, sid)
             watch_full = story_output.final / "full.mp4"
             watch_part = story_output.final / f"part1.mp4"
