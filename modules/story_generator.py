@@ -31,6 +31,7 @@ class StoryGenerator:
         topic: str,
         requested_parts: int,
         target_total_words: int | None = None,
+        generation_instructions: str = "",
     ) -> GeneratedStory:
         target_words = max(
             200,
@@ -40,10 +41,16 @@ class StoryGenerator:
             "You are an elite short-form storyteller. "
             "Return only valid JSON with keys: title, narrative, narrator_gender, narrator_tone. "
             "No markdown, no commentary. "
-            "Treat the supplied topic/story brief as the controlling instruction. "
-            "Follow its requested genre, characters, plot rules, tone, and constraints; "
-            "do not replace them with generic ideas or let a title or channel tags override them. "
-            f"Story brief: {topic}. "
+            + (
+                "MANDATORY ACCOUNT RULES — these override everything else including the topic direction. "
+                "You MUST follow every instruction below exactly as written. "
+                "Do NOT weaken, ignore, reinterpret, or contradict them for any reason. "
+                f"Rules: {generation_instructions.strip()} "
+                if generation_instructions.strip()
+                else ""
+            )
+            +
+            f"Topic: {topic}. "
             f"Write one connected long-form story that can be split into about {requested_parts} parts. "
             "Narrative must be immersive, dramatic, and continuity-safe across parts. "
             f"Use around {target_words} words in total. "

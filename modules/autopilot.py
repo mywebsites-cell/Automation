@@ -32,7 +32,7 @@ from modules.utils import (
 from modules.video_engine import RenderedPartArtifact, VideoPipelineEngine
 from modules.youtube_accounts import YouTubeAccount, YouTubeAccountManager
 from modules.youtube_uploader import YouTubeUploadResult, YouTubeUploader
-from modules.story_uploader import set_active_story
+from modules.story_uploader import set_active_story, update_active_story
 
 logger = logging.getLogger(__name__)
 
@@ -276,8 +276,9 @@ class AutopilotEngine:
         cfg = self.cfg
         story_id = next_story_id(self.paths.output_dir)
         story_output = ensure_story_output_structure(self.paths, story_id)
-        set_active_story(self.paths.cache_dir, story_id)
+        set_active_story(self.paths.cache_dir, story_id, "Starting new story")
         logger.info("=== Starting %s | topic=%r ===", story_id, topic)
+        update_active_story(self.paths.cache_dir, "Generating story script")
 
         target_wpm = 145
         total_target_words = max(200, int(cfg.total_story_minutes * target_wpm))
@@ -289,6 +290,7 @@ class AutopilotEngine:
             topic.strip(),
             requested_parts=cfg.shorts_per_story,
             target_total_words=total_target_words,
+            generation_instructions=(force_account.story_prompt if force_account else ""),
         )
         narrative = generated.narrative
         story_title = generated.title
@@ -309,6 +311,7 @@ class AutopilotEngine:
                 part.text = f"{text} Full story in profile."
 
         metadata_payload = self._story_to_metadata(story_title, topic, parts)
+        update_active_story(self.paths.cache_dir, "Preparing story metadata")
         if cfg.enable_youtube:
             self._enrich_youtube_metadata(story_title, topic, parts, metadata_payload)
         write_json(story_output.scripts / "metadata.json", metadata_payload)
@@ -353,6 +356,9 @@ class AutopilotEngine:
         self._save_progress(story_output, progress)
 
         for part in parts:
+            update_active_story(
+                self.paths.cache_dir, "Rendering short", part.index, len(parts)
+            )
             artifact, bg_position = self.pipeline.process_part(
                 story_output=story_output,
                 part_index=part.index,
@@ -367,6 +373,9 @@ class AutopilotEngine:
             artifacts.append(artifact)
 
             if youtube_uploader is not None:
+                update_active_story(
+                    self.paths.cache_dir, "Uploading short", part.index, len(parts)
+                )
                 url = self._upload_part(youtube_uploader, artifact, part, meta_by_index.get(part.index), story_title, thumbnail_path)
                 if url:
                     uploaded_videos.append(url)
@@ -377,6 +386,7 @@ class AutopilotEngine:
 
         long_artifact = None
         if cfg.long_video_enabled:
+            update_active_story(self.paths.cache_dir, "Rendering full story")
             long_artifact = self.pipeline.process_full_story(
                 story_output=story_output,
                 narrative=narrative,
@@ -387,6 +397,7 @@ class AutopilotEngine:
                 quality=cfg.quality,
             )
             if youtube_uploader is not None:
+                update_active_story(self.paths.cache_dir, "Uploading full story")
                 url = self._upload_long(youtube_uploader, long_artifact, story_title, topic, narrative, thumbnail_path)
                 if url:
                     uploaded_videos.append(url)
@@ -400,6 +411,7 @@ class AutopilotEngine:
         self._save_progress(story_output, progress)
 
         force_memory_cleanup()
+        update_active_story(self.paths.cache_dir, "Story complete")
         set_active_story(self.paths.cache_dir, None)
         logger.info("=== Completed %s | %s | %d upload(s) ===", story_id, story_title, len(uploaded_videos))
         return {
@@ -532,7 +544,7 @@ class AutopilotEngine:
         if found is None:
             return None
         story_id, story_output, progress = found
-        set_active_story(self.paths.cache_dir, story_id)
+        set_active_story(self.paths.cache_dir, story_id, "Resuming interrupted story")
         logger.info("=== Resuming %s ===", story_id)
 
         narrative_path = self.paths.stories_dir / f"{story_id}.txt"
@@ -597,6 +609,9 @@ class AutopilotEngine:
 
             final_path = story_output.final / f"part{part.index}.mp4"
             if not self._final_video_ok(final_path):
+                update_active_story(
+                    self.paths.cache_dir, "Re-rendering short", part.index, len(parts)
+                )
                 if final_path.exists():
                     logger.warning("Removing corrupt/incomplete %s; re-rendering.", final_path.name)
                     final_path.unlink(missing_ok=True)
@@ -620,6 +635,9 @@ class AutopilotEngine:
             )
 
             if youtube_uploader is not None:
+                update_active_story(
+                    self.paths.cache_dir, "Retrying short upload", part.index, len(parts)
+                )
                 url = self._upload_part(youtube_uploader, artifact, part, meta_by_index.get(part.index), story_title, thumbnail_path)
                 if url:
                     uploaded_videos.append(url)
@@ -632,6 +650,7 @@ class AutopilotEngine:
         if cfg.long_video_enabled and not progress["long_video"].get("uploaded"):
             full_path = story_output.final / "full.mp4"
             if not self._final_video_ok(full_path):
+                update_active_story(self.paths.cache_dir, "Re-rendering full story")
                 if full_path.exists():
                     full_path.unlink(missing_ok=True)
                 self.pipeline.process_full_story(
@@ -651,6 +670,7 @@ class AutopilotEngine:
                 final_video_path=full_path,
             )
             if youtube_uploader is not None:
+                update_active_story(self.paths.cache_dir, "Retrying full story upload")
                 url = self._upload_long(youtube_uploader, long_artifact, story_title, topic, narrative, thumbnail_path)
                 if url:
                     uploaded_videos.append(url)
@@ -663,6 +683,7 @@ class AutopilotEngine:
         self._save_progress(story_output, progress)
 
         force_memory_cleanup()
+        update_active_story(self.paths.cache_dir, "Resume complete")
         set_active_story(self.paths.cache_dir, None)
         logger.info("=== Resumed %s | state=%s | %d upload(s) ===", story_id, progress["state"], len(uploaded_videos))
         return {

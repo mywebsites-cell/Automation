@@ -68,13 +68,51 @@ def read_active_story(cache_dir: Path) -> str | None:
     return None
 
 
-def set_active_story(cache_dir: Path, story_id: str | None) -> None:
+def read_active_status(cache_dir: Path) -> dict[str, Any]:
+    p = active_story_path(cache_dir)
+    if p.exists():
+        try:
+            data = load_json(p)
+            return data if isinstance(data, dict) else {}
+        except Exception:
+            return {}
+    return {}
+
+
+def set_active_story(
+    cache_dir: Path,
+    story_id: str | None,
+    stage: str = "Starting",
+    part_index: int | None = None,
+    part_count: int | None = None,
+) -> None:
     p = active_story_path(cache_dir)
     if story_id is None:
         p.unlink(missing_ok=True)
     else:
         p.parent.mkdir(parents=True, exist_ok=True)
-        write_json(p, {"story_id": story_id, "iso": datetime.now().isoformat(timespec="seconds")})
+        write_json(
+            p,
+            {
+                "story_id": story_id,
+                "stage": stage,
+                "part_index": part_index,
+                "part_count": part_count,
+                "iso": datetime.now().isoformat(timespec="seconds"),
+            },
+        )
+
+
+def update_active_story(
+    cache_dir: Path,
+    stage: str,
+    part_index: int | None = None,
+    part_count: int | None = None,
+) -> None:
+    active = read_active_status(cache_dir)
+    story_id = active.get("story_id")
+    if story_id:
+        set_active_story(cache_dir, str(story_id), stage, part_index, part_count)
 
 
 # ── upload-task status files ────────────────────────────────────────────────

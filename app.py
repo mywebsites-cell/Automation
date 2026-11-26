@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import os
 # Hide CUDA from ctranslate2/faster-whisper on machines without CUDA runtime DLLs.
@@ -323,12 +323,9 @@ def _publish_part_to_youtube(
     youtube_category: str,
     youtube_privacy: str,
 ) -> YouTubeUploadResult:
-    if youtube_title.strip():
-        title = youtube_title.strip()
-    elif meta and meta.get("youtube_title"):
-        title = meta["youtube_title"]
-    else:
-        title = f"{story_title} - Part {part.index}"
+    title = youtube_title.strip() or (
+        meta.get("youtube_title") if meta else None
+    ) or f"{story_title} - Part {part.index}"
 
     if meta and meta.get("youtube_description"):
         description = meta["youtube_description"]
@@ -379,7 +376,9 @@ def _enrich_parts_with_ai_youtube_metadata(
 
 
 def render_app() -> None:
-    st.set_page_config(page_title="Local AI Shorts Factory", layout="wide")
+    _ui_settings = _load_settings().get("ui", {})
+    _app_title = _ui_settings.get("app_title", "Local AI Shorts Automation Engine")
+    st.set_page_config(page_title=_app_title, layout="wide")
 
     auth = AuthBackend(PATHS.cache_dir / "auth.db")
     bootstrap_username = os.getenv("APP_USERNAME", "")
@@ -438,14 +437,71 @@ def render_app() -> None:
                         st.error("Reset link is invalid or expired.")
         st.stop()
 
-    st.title("Local AI Shorts Automation Engine")
+    settings = _load_settings()
+    _app_title = settings.get("ui", {}).get("app_title", "Local AI Shorts Automation Engine")
+    st.title(_app_title)
     st.caption("Connected story generation, local narration, subtitles, and vertical short export")
     if st.sidebar.button("Sign out"):
         st.session_state["authenticated"] = False
         st.rerun()
 
-    settings = _load_settings()
+    # ── Live story progress panel (auto-refreshes every 5 s) ─────────────────
+    @st.fragment(run_every=5)
+    def _render_live_status() -> None:
+        from modules.story_uploader import read_active_status
+        import time as _time
 
+        status = read_active_status(PATHS.cache_dir)
+        if not status or not status.get("story_id"):
+            st.info("⚪ No story is currently being generated.", icon="💤")
+            return
+
+        sid = status["story_id"]
+        stage = status.get("stage") or "Working…"
+        part_idx = status.get("part_index")
+        part_cnt = status.get("part_count")
+        iso = status.get("iso", "")
+
+        # Elapsed time
+        elapsed_str = ""
+        if iso:
+            try:
+                from datetime import datetime as _dt, timezone as _tz
+                started = _dt.fromisoformat(iso)
+                if started.tzinfo is None:
+                    started = started.replace(tzinfo=_tz.utc)
+                elapsed_s = (_dt.now(_tz.utc) - started).total_seconds()
+                if elapsed_s < 60:
+                    elapsed_str = f"{int(elapsed_s)}s ago"
+                else:
+                    elapsed_str = f"{int(elapsed_s // 60)}m {int(elapsed_s % 60)}s ago"
+            except Exception:
+                pass
+
+        # Build header line
+        part_label = ""
+        progress_val = 0.0
+        if part_idx is not None and part_cnt:
+            part_label = f"  ·  Part **{part_idx}** of **{part_cnt}**"
+            progress_val = min(1.0, part_idx / max(1, part_cnt))
+
+        col_txt, col_refresh = st.columns([6, 1])
+        with col_txt:
+            st.markdown(
+                f"🔄 **{sid}** — {stage}{part_label}"
+                + (f"  ·  _{elapsed_str}_" if elapsed_str else "")
+            )
+        with col_refresh:
+            if st.button("↺ Refresh", key="live_refresh"):
+                st.rerun()
+
+        if part_idx is not None and part_cnt:
+            st.progress(progress_val, text=f"{int(progress_val * 100)}% complete")
+
+    with st.expander("🔴 Live Story Progress", expanded=autopilot_controller.is_running(PATHS.cache_dir)):
+        _render_live_status()
+
+    # NOTE: settings was already loaded above for _app_title; reuse it here.
     account_manager = YouTubeAccountManager(PATHS.cache_dir)
 
     # Load persisted API keys / provider config once, so they survive restarts.
@@ -459,6 +515,17 @@ def render_app() -> None:
 
     with st.sidebar:
         st.header("Pipeline Settings")
+
+        # ── App title editor ──────────────────────────────────────────────────
+        with st.expander("⚙️ App Settings", expanded=False):
+            _current_title = settings.get("ui", {}).get("app_title", "Local AI Shorts Automation Engine")
+            _new_title = st.text_input("App Title", value=_current_title, key="app_title_input")
+            if st.button("Save Title", key="save_app_title"):
+                settings.setdefault("ui", {})
+                settings["ui"]["app_title"] = _new_title.strip() or _current_title
+                write_json(SETTINGS_PATH, settings)
+                st.success("Title saved — will apply on next page load.")
+                st.rerun()
 
         # ── Script mode ──────────────────────────────────────────────────────
         script_mode = st.radio(
@@ -742,7 +809,7 @@ def render_app() -> None:
                 "Video Title Override",
                 value="",
                 placeholder="Leave blank to use the generated title",
-                help="When provided, this exact title is used for uploaded shorts and the full story.",
+                help="When set, this exact title is used for every uploaded part and the full story.",
             )
             if script_mode == "Manual Script":
                 youtube_description = st.text_area(
@@ -753,7 +820,7 @@ def render_app() -> None:
                 )
                 youtube_tags = st.text_input("Tags (comma separated)", value="shorts, storytime, viral, fyp")
             else:
-                st.caption("Descriptions and hashtags are generated automatically; your title override takes precedence.")
+                st.caption("Title, description and hashtags will be auto-generated for each part.")
             col_cat, col_priv = st.columns(2)
             with col_cat:
                 youtube_category = st.selectbox(
@@ -1152,6 +1219,10 @@ def render_app() -> None:
     if not run_btn:
         return
 
+    if autopilot_controller.is_running(PATHS.cache_dir):
+        st.error("Pause Autopilot before starting a one-shot generation queue.")
+        st.stop()
+
     # ── Validation ────────────────────────────────────────────────────────────
     if not ffmpeg_ok:
         st.stop()
@@ -1261,7 +1332,26 @@ def render_app() -> None:
         st.markdown(f"### Processing {story_id} ({idx}/{len(queue)})")
 
         step_status = st.status("Preparing story", expanded=True)
+        story_uploader.set_active_story(PATHS.cache_dir, story_id, "Preparing story")
         try:
+            selected_account = (
+                account_manager.resolve_account(topic.strip(), accounts)
+                if enable_youtube
+                else None
+            )
+
+            # ── Show account prompt notice ────────────────────────────────────
+            if (
+                script_mode == "AI Generate"
+                and selected_account
+                and getattr(selected_account, "story_prompt", "").strip()
+            ):
+                st.info(
+                    f"📋 Account **\"{selected_account.name}\"** has a custom generation prompt "
+                    "that will be enforced as **mandatory rules** on top of your topic.",
+                    icon="ℹ️",
+                )
+
             # Duration-driven story planning.
             target_wpm = 145
             total_target_words = max(200, int(float(total_story_minutes) * target_wpm))
@@ -1270,33 +1360,27 @@ def render_app() -> None:
             max_words = max(min_words + 10, int(words_per_part_target * 1.1))
 
             # ── Resolve narrative + title ─────────────────────────────────────
+            story_uploader.update_active_story(PATHS.cache_dir, "Generating story script")
             if script_mode == "AI Generate":
                 assert story_generator is not None
-                generation_account = (
-                    account_manager.resolve_account(topic.strip(), accounts)
-                    if enable_youtube
-                    else None
-                )
-                generation_prompt = (
-                    generation_account.story_prompt.strip()
-                    if generation_account and generation_account.story_prompt.strip()
-                    else topic.strip()
-                )
                 generated = story_generator.generate_story(
-                    generation_prompt,
+                    topic.strip(),
                     requested_parts=shorts_per_story,
                     target_total_words=total_target_words,
+                    generation_instructions=(
+                        selected_account.story_prompt if selected_account else ""
+                    ),
                 )
                 narrative = generated.narrative
                 story_title = generated.title
-                display_topic = generation_prompt
+                display_topic = topic.strip()
             else:
-                generation_account = None
                 narrative = manual_script.strip()
                 story_title = manual_title.strip() or "Manual Story"
                 display_topic = story_title
 
             (PATHS.stories_dir / f"{story_id}.txt").write_text(narrative + "\n", encoding="utf-8")
+            story_uploader.update_active_story(PATHS.cache_dir, "Splitting story into parts")
 
             parts = split_story_into_parts(
                 narrative,
@@ -1316,6 +1400,7 @@ def render_app() -> None:
             metadata_payload = _story_to_metadata(story_title, display_topic, parts)
             if script_mode == "AI Generate" and enable_youtube:
                 step_status.update(label="Generating YouTube metadata\u2026", state="running")
+                story_uploader.update_active_story(PATHS.cache_dir, "Generating YouTube metadata")
                 _enrich_parts_with_ai_youtube_metadata(
                     story_generator, story_title, display_topic, parts, metadata_payload
                 )
@@ -1324,6 +1409,7 @@ def render_app() -> None:
             thumbnail_path: Path | None = None
             if enable_thumbnail:
                 step_status.update(label="Generating story thumbnail\u2026", state="running")
+                story_uploader.update_active_story(PATHS.cache_dir, "Generating thumbnail")
                 try:
                     image_gen = ImageGenerator(
                         provider=image_provider,
@@ -1365,9 +1451,7 @@ def render_app() -> None:
             youtube_uploader = None
             meta_by_index = {p["part_index"]: p for p in metadata_payload["parts"]}
             if enable_youtube:
-                youtube_account = generation_account or account_manager.resolve_account(
-                    f"{story_title} {display_topic}", accounts
-                )
+                youtube_account = selected_account
                 if youtube_account is None:
                     st.error("No YouTube account available for routing.")
                     st.stop()
@@ -1378,6 +1462,9 @@ def render_app() -> None:
                 )
 
             for part in parts:
+                story_uploader.update_active_story(
+                    PATHS.cache_dir, "Rendering short", part.index, len(parts)
+                )
                 artifact, bg_position = pipeline.process_part(
                     story_output=story_output,
                     part_index=part.index,
@@ -1397,6 +1484,9 @@ def render_app() -> None:
 
                 if youtube_uploader is not None:
                     try:
+                        story_uploader.update_active_story(
+                            PATHS.cache_dir, "Uploading short", part.index, len(parts)
+                        )
                         result = _publish_part_to_youtube(
                             youtube_uploader,
                             artifact=artifact,
@@ -1418,6 +1508,7 @@ def render_app() -> None:
             long_artifact = None
             if long_video_enabled:
                 step_status.update(label="Rendering full-story long video\u2026", state="running")
+                story_uploader.update_active_story(PATHS.cache_dir, "Rendering full story")
                 try:
                     long_artifact = pipeline.process_full_story(
                         story_output=story_output,
@@ -1469,6 +1560,7 @@ def render_app() -> None:
             st.error(f"Story job failed for {story_id}: {exc}")
         finally:
             force_memory_cleanup()
+            story_uploader.set_active_story(PATHS.cache_dir, None)
 
         global_progress.progress(int((idx / len(queue)) * 100), text=f"Completed {idx}/{len(queue)} stories")
 

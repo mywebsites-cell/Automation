@@ -164,10 +164,14 @@ def _cycle_accounts(engine: AutopilotEngine) -> list[YouTubeAccount]:
 
 
 def _topic_for_account(engine: AutopilotEngine, account: YouTubeAccount, ap: dict, used: list[str]) -> str:
-    """Pick/generate a topic that belongs to this account's niche."""
-    if getattr(account, "story_prompt", "").strip():
-        return account.story_prompt.strip()
+    """Pick/generate a topic that belongs to this account's niche.
 
+    When an account has a story_prompt, that prompt is passed to the story
+    generator as *generation_instructions* (style/format rules) by run_story()
+    via force_account.story_prompt.  We still pick a real topic here so the LLM
+    has a concrete subject to write about — otherwise the same prompt text ends
+    up used twice (once as topic, once as instructions) which confuses the model.
+    """
     static = list(ap.get("topics", []))
 
     if account.keywords:

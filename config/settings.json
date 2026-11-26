@@ -53,5 +53,8 @@
     "max_workers": 1,
     "cuda_compute_type": "float16",
     "cpu_compute_type": "int8"
+  },
+  "ui": {
+    "app_title": "Local AI Shorts Automation Engine"
   }
 }
