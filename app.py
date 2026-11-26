@@ -870,6 +870,20 @@ def render_app() -> None:
         # Auto voice: pick a narrator (male/female, deep/warm/…) per story.
         autopilot_config_path = PATHS.config_dir / "autopilot.json"
         _ap_cfg = _load_optional_json(autopilot_config_path)
+        privacy_options = ["private", "unlisted", "public"]
+        saved_privacy = _ap_cfg.get("youtube_privacy", "private")
+        if saved_privacy not in privacy_options:
+            saved_privacy = "private"
+        autopilot_privacy = st.selectbox(
+            "Autopilot upload privacy",
+            options=privacy_options,
+            index=privacy_options.index(saved_privacy),
+            help="Applies to future Autopilot uploads. Existing uploads and the active story are unchanged.",
+        )
+        if autopilot_privacy != _ap_cfg.get("youtube_privacy", "private"):
+            _ap_cfg["youtube_privacy"] = autopilot_privacy
+            write_json(autopilot_config_path, _ap_cfg)
+
         background_files = [
             path
             for category in bg_manager.categories()
