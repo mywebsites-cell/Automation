@@ -1307,12 +1307,11 @@ def render_app() -> None:
     # Pre-connect all YouTube accounts once (tokens are cached, so this only
     # opens the browser the first time an account is used).
     account_uploaders: dict[str, tuple[YouTubeAccount, YouTubeUploader]] = {}
-    accounts: list[YouTubeAccount] = []
+    accounts: list[YouTubeAccount] = account_manager.list_accounts()
     if enable_youtube:
         if not account_manager.has_client_secret():
             st.error("YouTube is enabled but no client_secret.json was uploaded.")
             st.stop()
-        accounts = account_manager.list_accounts()
         if not accounts:
             st.error("No YouTube account connected. Connect one in the sidebar, then rerun.")
             st.stop()
@@ -1334,11 +1333,7 @@ def render_app() -> None:
         step_status = st.status("Preparing story", expanded=True)
         story_uploader.set_active_story(PATHS.cache_dir, story_id, "Preparing story")
         try:
-            selected_account = (
-                account_manager.resolve_account(topic.strip(), accounts)
-                if enable_youtube
-                else None
-            )
+            selected_account = account_manager.resolve_account(topic.strip(), accounts)
 
             # ── Show account prompt notice ────────────────────────────────────
             if (
