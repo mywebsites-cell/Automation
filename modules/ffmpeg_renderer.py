@@ -167,7 +167,9 @@ class FFmpegRenderer:
             "+faststart",
             str(output_path),
         ]
-        code, _, err = run_command(cmd, timeout=3600)
+        code, _, err = run_command(cmd, timeout=21600)
+        if code == 124:
+            raise RuntimeError("FFmpeg render timed out after 6 hours")
         if code != 0:
             raise RuntimeError(f"FFmpeg render failed: {err.strip()}")
         return output_path
@@ -206,8 +208,8 @@ class FFmpegRenderer:
             # libx264 CPU presets: ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow
             mapping = {
                 "Draft": "ultrafast",
-                "Balanced": "slow",
-                "High": "veryslow",
+                "Balanced": "medium",
+                "High": "slow",
             }
         return mapping.get(quality, mapping["Balanced"])
 

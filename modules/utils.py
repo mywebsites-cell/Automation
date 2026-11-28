@@ -171,6 +171,10 @@ def run_command(command: Iterable[str], timeout: int | None = None) -> tuple[int
             check=False,
         )
         return proc.returncode, proc.stdout, proc.stderr
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout.decode() if isinstance(exc.stdout, bytes) else (exc.stdout or "")
+        stderr = exc.stderr.decode() if isinstance(exc.stderr, bytes) else (exc.stderr or "")
+        return 124, stdout, stderr or "Command timed out"
     except FileNotFoundError as exc:
         return 127, "", str(exc)
 
